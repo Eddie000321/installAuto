@@ -1,46 +1,95 @@
 @echo off
-setlocal
-echo [SiSoftware Sandra Auto-Reinstaller]
+setlocal EnableDelayedExpansion
+
+:: ============================================================
+:: [1] Self-Elevation Routine (Auto-Request Admin Rights)
+:: ============================================================
+:checkPrivileges
+NET FILE 1>NUL 2>NUL
+if '%errorlevel%' == '0' ( goto gotPrivileges ) else ( goto getPrivileges )
+
+:getPrivileges
+if '%1'=='ELEV' (echo ELEV & shift /1 & goto gotPrivileges)
 echo.
+echo **************************************************
+echo Requesting Administrative Privileges...
+echo Please click "Yes" in the popup window.
+echo **************************************************
 
-:: 1. Uninstall the existing version (Requires Admin Rights)
-echo [1/3] Safely uninstalling the existing version...
+setlocal DisableDelayedExpansion
+set "batchPath=%~0"
+setlocal EnableDelayedExpansion
+:: Create VBS script to relaunch this batch file as Admin
+echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\OEgetPriv_v1.vbs"
+echo UAC.ShellExecute "!batchPath!", "ELEV", "", "runas", 1 >> "%temp%\OEgetPriv_v1.vbs"
+"%temp%\OEgetPriv_v1.vbs"
+exit /B
 
-:: Define the uninstaller path (Standard path for Lite 2021)
-set "UNINSTALLER=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021\unins000.exe"
+:gotPrivileges
+:: ============================================================
+:: [2] Main Logic (Runs as Administrator)
+:: ============================================================
 
-:: Check if the uninstaller exists
-if exist "%UNINSTALLER%" (
-    :: /VERYSILENT : No progress window
-    :: /SUPPRESSMSGBOXES : No warning/confirmation boxes
-    :: /NORESTART : Prevent forced reboot
-    "%UNINSTALLER%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-    echo  -> Uninstall command sent. Waiting for completion...
-    timeout /t 15 /nobreak >nul
-) else (
-    echo  -> Existing installation not found (or path is different).
+:: IMPORTANT: Switch working directory back to the USB (current folder)
+cd /d "%~dp0"
+
+echo.
+echo [1/3] Force closing running Sandra processes...
+taskkill /F /IM Sandra.exe >nul 2>&1
+taskkill /F /IM RpcSandbox.exe >nul 2>&1
+taskkill /F /IM W32Sandra.exe >nul 2>&1
+echo Done.
+
+:: --- Find the Uninstaller ---
+echo [2/3] Locating and running uninstaller...
+
+set "TARGET_DIR=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021"
+set "UNINS=%TARGET_DIR%\unins000.exe"
+
+:: Fallback check if the folder name is different (without 2021)
+if not exist "%UNINS%" (
+    set "TARGET_DIR=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite"
+    set "UNINS=!TARGET_DIR!\unins000.exe"
 )
 
-:: 2. Clean up residual files
-echo [2/3] Cleaning up residual folders...
+:: Run Uninstaller if found
+if exist "%UNINS%" (
+    echo Found Uninstaller: "%UNINS%"
+    echo Uninstalling... Please wait.
+    :: start /wait ensures we don't proceed until uninstall is done
+    start /wait "" "%UNINS%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+    echo Uninstall complete.
+) else (
+    echo Uninstaller not found (Program might already be removed).
+)
+
+:: --- Cleanup Residual Files ---
+echo Cleaning up residual folders...
 timeout /t 3 /nobreak >nul
-if exist "%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021" (
-    rmdir /s /q "%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021"
+if exist "!TARGET_DIR!" (
+    rmdir /s /q "!TARGET_DIR!"
 )
 
-:: 3. Install the new version
-echo [3/3] Installing the new version (san31137)...
-
-:: UPDATED: Filename changed to san31137.exe
-if exist "%~dp0san31137.exe" (
-    :: /VERYSILENT /SUPPRESSMSGBOXES used for silent install
-    "%~dp0san31137.exe" /VERYSILENT /SUPPRESSMSGBOXES
-    echo  -> Installation complete.
-) else (
-    echo  -> ERROR: Installer file 'san31137.exe' not found on USB.
-    echo     Please check if the file is named correctly.
-)
-
+:: --- Install New Version ---
 echo.
-echo All tasks finished.
-pause
+echo [3/3] Installing new version (san31137.exe)...
+
+if exist "san31137.exe" (
+    start /wait "" "san31137.exe" /VERYSILENT /SUPPRESSMSGBOXES
+    echo Installation Complete!
+) else (
+    echo.
+    echo [ERROR] File 'san31137.exe' NOT found in this folder.
+    echo Please check your USB drive.
+)
+
+:: ============================================================
+:: [3] End of Script - Wait for User Input
+:: ============================================================
+echo.
+echo ========================================================
+echo  All tasks finished successfully.
+echo  Press ENTER to close this window...
+echo ========================================================
+pause >nul
+exit
