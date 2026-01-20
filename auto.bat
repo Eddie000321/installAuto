@@ -3,94 +3,94 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 :: ============================================================
-:: [1] Check for Admin Rights & Self-Elevate (Using PowerShell)
+:: [1] Check Admin Rights (PowerShell Method)
 :: ============================================================
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 
 if '%errorlevel%' NEQ '0' (
     echo.
-    echo [Administrator Privileges Required]
-    echo You do not have admin rights. Requesting permission...
-    echo Please click "Yes" in the popup window.
-    echo.
-    
-    :: Use PowerShell to restart this script as Administrator
+    echo [Requesting Admin Rights...]
     powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-    
-    :: Wait for 5 seconds so you can see the message before this window closes
-    echo [Info] Waiting for the new Admin window to open...
-    timeout /t 5 >nul
     exit /b
 )
 
 :: ============================================================
-:: [2] This part runs ONLY in the new Admin Window
+:: [2] Main Process (Admin Mode)
 :: ============================================================
-:: IMPORTANT: Return to the USB folder path
+:: Go to USB Path
 cd /d "%~dp0"
-
 echo.
 echo ========================================================
-echo  Admin privileges acquired! Starting the process...
+echo  DEBUG MODE START
+echo  Current Path: %CD%
 echo ========================================================
 echo.
 
-:: --- 1. Force Close Running Processes ---
-echo [1/3] Force closing running programs...
-taskkill /F /IM Sandra.exe >nul 2>&1
-taskkill /F /IM RpcSandbox.exe >nul 2>&1
-taskkill /F /IM W32Sandra.exe >nul 2>&1
-echo Done.
-
-:: --- 2. Find and Run Uninstaller ---
+:: --- 1. Force Close (Error check) ---
+echo [1/3] Attempting to close running programs...
+echo (If errors appear below, it is okay. It means the program is not running.)
 echo.
-echo [2/3] Searching for uninstaller (unins000.exe)...
+
+:: Remove '>nul' to SEE errors
+taskkill /F /IM Sandra.exe 
+taskkill /F /IM RpcSandbox.exe 
+taskkill /F /IM W32Sandra.exe 
+
+echo.
+echo --------------------------------------------------------
+echo Step 1 Finished. Check for errors above.
+echo Press ENTER to continue to Uninstall...
+echo --------------------------------------------------------
+pause
+
+:: --- 2. Uninstall ---
+echo.
+echo [2/3] Searching for uninstaller...
 
 set "TARGET_DIR=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021"
 set "UNINS=%TARGET_DIR%\unins000.exe"
 
-:: Fallback check if the folder name is different (without 2021)
 if not exist "%UNINS%" (
     set "TARGET_DIR=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite"
     set "UNINS=!TARGET_DIR!\unins000.exe"
 )
 
-:: Run Uninstaller if found
 if exist "%UNINS%" (
     echo Found: "%UNINS%"
-    echo Uninstalling... (This may take a moment)
+    echo Uninstalling...
     start /wait "" "%UNINS%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
     echo Uninstall complete.
 ) else (
-    echo [WARNING] Uninstaller not found. (Already removed?)
+    echo [WARNING] Uninstaller NOT found.
+    echo Expected path: %UNINS%
 )
 
-:: Cleanup Residual Folders
-echo Cleaning up residual files...
-timeout /t 2 /nobreak >nul
-if exist "!TARGET_DIR!" (
-    rmdir /s /q "!TARGET_DIR!"
-)
-
-:: --- 3. Install New Version ---
 echo.
-echo [3/3] Installing new version (san31137.exe)...
+echo --------------------------------------------------------
+echo Step 2 Finished. Press ENTER to continue to Install...
+echo --------------------------------------------------------
+pause
+
+:: Residual Cleanup
+if exist "!TARGET_DIR!" rmdir /s /q "!TARGET_DIR!"
+
+:: --- 3. Install ---
+echo.
+echo [3/3] Installing san31137.exe...
 
 if exist "san31137.exe" (
     start /wait "" "san31137.exe" /VERYSILENT /SUPPRESSMSGBOXES
-    echo Installation finished successfully!
+    echo Installation Success!
 ) else (
     echo.
-    echo [ERROR] File 'san31137.exe' not found on USB.
-    echo Please check the filename.
+    echo [CRITICAL ERROR] File 'san31137.exe' not found!
+    echo Current folder is: %CD%
+    echo Please make sure the .exe file is in this folder.
 )
 
-:: ============================================================
-:: [3] Prevent Auto-Close (Wait for Enter)
-:: ============================================================
 echo.
 echo ========================================================
-echo  All tasks finished.
-echo  Press ENTER to close this window.
+echo  Script Finished.
+echo  Press ENTER to close.
 echo ========================================================
-pause >nul
+pause
