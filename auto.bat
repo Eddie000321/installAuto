@@ -1,47 +1,50 @@
 @echo off
 setlocal EnableDelayedExpansion
+cd /d "%~dp0"
 
 :: ============================================================
-:: [1] Self-Elevation Routine (Auto-Request Admin Rights)
+:: [1] Check for Admin Rights & Self-Elevate (Using PowerShell)
 :: ============================================================
-:checkPrivileges
-NET FILE 1>NUL 2>NUL
-if '%errorlevel%' == '0' ( goto gotPrivileges ) else ( goto getPrivileges )
+>nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 
-:getPrivileges
-if '%1'=='ELEV' (echo ELEV & shift /1 & goto gotPrivileges)
-echo.
-echo **************************************************
-echo Requesting Administrative Privileges...
-echo Please click "Yes" in the popup window.
-echo **************************************************
+if '%errorlevel%' NEQ '0' (
+    echo.
+    echo [Administrator Privileges Required]
+    echo You do not have admin rights. Requesting permission...
+    echo Please click "Yes" in the popup window.
+    echo.
+    
+    :: Use PowerShell to restart this script as Administrator
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    
+    :: Wait for 5 seconds so you can see the message before this window closes
+    echo [Info] Waiting for the new Admin window to open...
+    timeout /t 5 >nul
+    exit /b
+)
 
-setlocal DisableDelayedExpansion
-set "batchPath=%~0"
-setlocal EnableDelayedExpansion
-:: Create VBS script to relaunch this batch file as Admin
-echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\OEgetPriv_v1.vbs"
-echo UAC.ShellExecute "!batchPath!", "ELEV", "", "runas", 1 >> "%temp%\OEgetPriv_v1.vbs"
-"%temp%\OEgetPriv_v1.vbs"
-exit /B
-
-:gotPrivileges
 :: ============================================================
-:: [2] Main Logic (Runs as Administrator)
+:: [2] This part runs ONLY in the new Admin Window
 :: ============================================================
-
-:: IMPORTANT: Switch working directory back to the USB (current folder)
+:: IMPORTANT: Return to the USB folder path
 cd /d "%~dp0"
 
 echo.
-echo [1/3] Force closing running Sandra processes...
+echo ========================================================
+echo  Admin privileges acquired! Starting the process...
+echo ========================================================
+echo.
+
+:: --- 1. Force Close Running Processes ---
+echo [1/3] Force closing running programs...
 taskkill /F /IM Sandra.exe >nul 2>&1
 taskkill /F /IM RpcSandbox.exe >nul 2>&1
 taskkill /F /IM W32Sandra.exe >nul 2>&1
 echo Done.
 
-:: --- Find the Uninstaller ---
-echo [2/3] Locating and running uninstaller...
+:: --- 2. Find and Run Uninstaller ---
+echo.
+echo [2/3] Searching for uninstaller (unins000.exe)...
 
 set "TARGET_DIR=%ProgramFiles%\SiSoftware\SiSoftware Sandra Lite 2021"
 set "UNINS=%TARGET_DIR%\unins000.exe"
@@ -54,42 +57,40 @@ if not exist "%UNINS%" (
 
 :: Run Uninstaller if found
 if exist "%UNINS%" (
-    echo Found Uninstaller: "%UNINS%"
-    echo Uninstalling... Please wait.
-    :: start /wait ensures we don't proceed until uninstall is done
+    echo Found: "%UNINS%"
+    echo Uninstalling... (This may take a moment)
     start /wait "" "%UNINS%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
     echo Uninstall complete.
 ) else (
-    echo Uninstaller not found (Program might already be removed).
+    echo [WARNING] Uninstaller not found. (Already removed?)
 )
 
-:: --- Cleanup Residual Files ---
-echo Cleaning up residual folders...
-timeout /t 3 /nobreak >nul
+:: Cleanup Residual Folders
+echo Cleaning up residual files...
+timeout /t 2 /nobreak >nul
 if exist "!TARGET_DIR!" (
     rmdir /s /q "!TARGET_DIR!"
 )
 
-:: --- Install New Version ---
+:: --- 3. Install New Version ---
 echo.
 echo [3/3] Installing new version (san31137.exe)...
 
 if exist "san31137.exe" (
     start /wait "" "san31137.exe" /VERYSILENT /SUPPRESSMSGBOXES
-    echo Installation Complete!
+    echo Installation finished successfully!
 ) else (
     echo.
-    echo [ERROR] File 'san31137.exe' NOT found in this folder.
-    echo Please check your USB drive.
+    echo [ERROR] File 'san31137.exe' not found on USB.
+    echo Please check the filename.
 )
 
 :: ============================================================
-:: [3] End of Script - Wait for User Input
+:: [3] Prevent Auto-Close (Wait for Enter)
 :: ============================================================
 echo.
 echo ========================================================
-echo  All tasks finished successfully.
-echo  Press ENTER to close this window...
+echo  All tasks finished.
+echo  Press ENTER to close this window.
 echo ========================================================
 pause >nul
-exit
