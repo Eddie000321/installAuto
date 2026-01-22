@@ -38,7 +38,7 @@ echo    1. Logic.ps1 detects 40 days passed
 echo    2. Sandra will be uninstalled
 echo    3. Sandra will be reinstalled
 echo    4. Popup notification will appear
-echo    5. PC will reboot in 10 seconds
+echo    5. PC will reboot in 5 seconds
 echo.
 echo  Press any key to REBOOT NOW and test...
 echo  Or close this window to reboot manually later.
