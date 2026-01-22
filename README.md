@@ -76,7 +76,8 @@ Both versions are **completely safe**:
 - ✅ Uses official Windows commands
 - ✅ No registry modifications (beyond normal install/uninstall)
 - ✅ No data collection or external connections
-- ✅ No system restarts
+- ✅ No system restarts (USB Version)
+- ⚠️ Auto-reboot after reinstall (Scheduler Version only)
 
 ---
 
